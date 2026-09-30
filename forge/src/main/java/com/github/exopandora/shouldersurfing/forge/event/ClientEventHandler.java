@@ -1,6 +1,8 @@
 package com.github.exopandora.shouldersurfing.forge.event;
 
 import com.github.exopandora.shouldersurfing.client.CrosshairRenderer;
+import com.github.exopandora.shouldersurfing.camera.shake.CameraShakeService;
+import com.github.exopandora.shouldersurfing.camera.target.TargetService;
 import com.github.exopandora.shouldersurfing.client.ShoulderSurfingImpl;
 import com.github.exopandora.shouldersurfing.mixinducks.CameraDuck;
 import net.minecraft.client.Minecraft;
@@ -23,6 +25,9 @@ public class ClientEventHandler
 		if(Phase.START.equals(event.phase) && Minecraft.getInstance().level != null && !Minecraft.getInstance().isPaused())
 		{
 			ShoulderSurfingImpl.getInstance().tick();
+			CameraShakeService.tick();
+			TargetService.tick(Minecraft.getInstance().options.keyPickItem.isDown());
+			TargetService.applyPlayerFacing();
 		}
 	}
 	
@@ -77,6 +82,12 @@ public class ClientEventHandler
 	@SubscribeEvent
 	public static void computeCameraAnglesEvent(ViewportEvent.ComputeCameraAngles event)
 	{
+		CameraShakeService.apply(event.getCamera(), (float) event.getPartialTick());
 		event.setRoll(event.getRoll() + ((CameraDuck) event.getCamera()).shouldersurfing$getZRot());
+	}
+
+	public static void computeFovEvent(ViewportEvent.ComputeFov event)
+	{
+		event.setFOV(CameraShakeService.applyFov((float) event.getFOV(), (float) event.getPartialTick()));
 	}
 }

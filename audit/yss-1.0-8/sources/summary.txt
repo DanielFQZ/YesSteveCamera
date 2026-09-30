@@ -1,0 +1,9 @@
+Summary for E:\JavaProject\YesSteveCamera\audit\yss-1.0-8\yessteveskill-1.0-8.jar
+Decompiled with CFR 0.152
+
+
+io.github.tt432.yessteveskill.client.dnd.WinDropTarget
+----------------------------
+
+extractPaths(com.sun.jna.Pointer )
+  Loose catch block

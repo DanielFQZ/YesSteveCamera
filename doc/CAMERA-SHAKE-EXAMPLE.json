@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "id": "yesstevecamera:heavy_hit",
+  "duration": 0.42,
+  "tracks": [
+    {
+      "channel": "ROTATION",
+      "axis": [1.0, 0.15, 0.0],
+      "amplitude": 7.0,
+      "wave": {"type": "DAMPED", "frequency": 18.0, "damping": 8.0},
+      "envelope": {"attack": 0.015, "hold": 0.025, "release": 0.38, "easing": "EASE_OUT"}
+    },
+    {
+      "channel": "TRANSLATION",
+      "axis": [0.0, 0.0, -1.0],
+      "keyframes": [
+        {"time": 0.0, "value": 0.0},
+        {"time": 0.045, "value": 1.0, "curve": "EASE_OUT"},
+        {"time": 0.18, "value": -0.4, "curve": "EASE_IN_OUT"},
+        {"time": 0.42, "value": 0.0, "curve": "EASE_OUT"}
+      ],
+      "envelope": {"attack": 0.0, "hold": 0.42, "release": 0.0, "easing": "LINEAR"}
+    }
+  ]
+}

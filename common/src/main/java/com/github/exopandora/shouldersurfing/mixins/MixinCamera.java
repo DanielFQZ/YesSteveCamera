@@ -107,4 +107,12 @@ public abstract class MixinCamera implements CameraDuck
 	{
 		this.zRot = zRot;
 	}
+
+	@Override
+	public void shouldersurfing$applyShake(double x, double y, double z, float xRot, float yRot, float zRot)
+	{
+		this.move(x, y, z);
+		this.setRotation(this.yRot + yRot, this.xRot + xRot);
+		this.zRot += zRot;
+	}
 }
