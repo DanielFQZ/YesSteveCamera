@@ -12,24 +12,29 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-/** Strict, fail-soft JSON loader for client shake presets. */
+/** Strict, transactional JSON loader for client shake presets. */
 public final class ShakePresetJsonLoader
 {
 	private ShakePresetJsonLoader() {}
 
-	public static List<ShakePreset> loadDirectory(Path directory)
+	public static List<ShakePreset> loadDirectory(Path directory) throws java.io.IOException
 	{
-		if (!Files.isDirectory(directory)) return List.of();
+		Files.createDirectories(directory);
 		List<ShakePreset> result = new ArrayList<>();
+		java.util.Set<String> ids = new java.util.HashSet<>();
 		try (var paths = Files.list(directory))
 		{
-			paths.filter(path -> path.getFileName().toString().endsWith(".json")).sorted().forEach(path ->
+			for (Path path : paths.filter(p -> p.getFileName().toString().endsWith(".json")).sorted().toList())
 			{
-				try (Reader reader = Files.newBufferedReader(path)) { result.add(parse(JsonParser.parseReader(reader).getAsJsonObject())); }
-				catch (Exception ignored) { }
-			});
+				try (Reader reader = Files.newBufferedReader(path))
+				{
+					ShakePreset preset = parse(JsonParser.parseReader(reader).getAsJsonObject());
+					if (!ids.add(preset.id())) throw new IllegalArgumentException("Duplicate preset ID: " + preset.id());
+					result.add(preset);
+				}
+				catch (Exception exception) { throw new java.io.IOException(path + ": " + exception.getMessage(), exception); }
+			}
 		}
-		catch (Exception ignored) { return List.of(); }
 		return List.copyOf(result);
 	}
 

@@ -5,6 +5,9 @@ import com.mojang.authlib.GameProfile;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.client.player.LocalPlayer;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.Mixin;
 
 @Mixin(value = LocalPlayer.class, priority = 1500 /* apply after essential client, so turn method gets overwritten */)
@@ -22,5 +25,11 @@ public abstract class MixinLocalPlayer extends AbstractClientPlayer
 		{
 			super.turn(yRot, xRot);
 		}
+	}
+
+	@Inject(method = "aiStep", at = @At("TAIL"))
+	private void yesstevecamera$allowAnyDirectionSprint(CallbackInfo callbackInfo)
+	{
+		com.github.exopandora.shouldersurfing.camera.assist.AnyDirectionSprintService.applyAfterAiStep((LocalPlayer) (Object) this);
 	}
 }

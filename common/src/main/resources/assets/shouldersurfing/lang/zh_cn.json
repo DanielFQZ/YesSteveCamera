@@ -1,5 +1,5 @@
 {
-    "modmenu.nameTranslation.${modId}": "Shoulder Surfing Reloaded （越肩视角重制版）",
+    "modmenu.nameTranslation.${modId}": "YesSteveCamera",
 
     "${modId}.configuration.title": "越肩视角重制版客户端配置",
     "${modId}.configuration.section.${modId}.client.toml": "客户端配置",
@@ -358,5 +358,10 @@
     "key.${modId}.toggle_camera_coupling": "切换摄像机耦合",
     "key.${modId}.toggle_x_offset_presets": "切换X轴偏移预设",
     "key.${modId}.toggle_y_offset_presets": "切换Y轴偏移预设",
-    "key.${modId}.toggle_z_offset_presets": "切换Z轴偏移预设"
+    "key.${modId}.toggle_z_offset_presets": "切换Z轴偏移预设",
+    "key.${modId}.enter_first_person": "进入第一人称视角",
+    "key.${modId}.enter_third_person_front": "进入第三人称视角（前）",
+    "key.${modId}.enter_third_person_back": "进入第三人称视角（后）",
+    "key.${modId}.enter_shoulder_surfing": "进入越肩视角",
+    "key.categories.yesstevecamera": "YesSteveCamera"
 }

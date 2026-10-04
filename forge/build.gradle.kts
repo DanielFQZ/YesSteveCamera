@@ -78,9 +78,10 @@ tasks.named<ProcessResources>("processResources") {
 	)
 	
 	inputs.properties(properties)
+	inputs.property("preserveJsonEscapes", true)
 	
 	filesMatching(listOf("pack.mcmeta", "META-INF/mods.toml", "**/lang/*.json")) {
-		expand(properties)
+		expand(properties) { escapeBackslash = true }
 	}
 }
 
@@ -119,3 +120,24 @@ sourceSets.forEach {
 	it.output.setResourcesDir(dir)
 	it.java.destinationDirectory.set(dir)
 }
+
+// Supply the local YSM dev JAR when building the optional, API-checked animation bridge.
+val ysmJar = providers.gradleProperty("ysmJar").orNull
+if (ysmJar != null) {
+    val ysm by sourceSets.creating
+    ysm.compileClasspath += sourceSets.main.get().output + sourceSets.main.get().compileClasspath
+    dependencies {
+        add(ysm.compileOnlyConfigurationName, files(ysmJar))
+        add(ysm.annotationProcessorConfigurationName, files(ysmJar))
+    }
+    tasks.named<JavaCompile>(ysm.compileJavaTaskName) { dependsOn(tasks.classes) }
+    tasks.jar { from(ysm.output) }
+}
+
+// Pure camera state machines and preset loading; no game launch required.
+dependencies {
+    testImplementation(platform("org.junit:junit-bom:5.10.2"))
+    testImplementation("org.junit.jupiter:junit-jupiter")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+}
+tasks.test { useJUnitPlatform() }

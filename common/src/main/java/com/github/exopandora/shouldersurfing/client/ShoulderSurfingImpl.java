@@ -99,7 +99,8 @@ public class ShoulderSurfingImpl implements IShoulderSurfing
 			this.isFreeLooking = InputHandler.FREE_LOOK.isDown() && !this.isAiming;
 			this.camera.tick();
 			
-			if(!this.isFreeLooking && minecraft.getCameraEntity() == player)
+			if(!this.isFreeLooking && minecraft.getCameraEntity() == player
+					&& !com.github.exopandora.shouldersurfing.camera.assist.CombatAssistService.ownsFacing())
 			{
 				boolean shouldAimAtTarget = this.shouldEntityAimAtTargetInternal(player, minecraft);
 				

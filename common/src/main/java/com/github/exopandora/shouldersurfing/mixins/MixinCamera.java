@@ -33,6 +33,9 @@ public abstract class MixinCamera implements CameraDuck
 	private float zRot;
 	
 	@Shadow
+	protected abstract void setPosition(Vec3 position);
+
+	@Shadow
 	protected abstract void move(double x, double y, double z);
 	
 	@Shadow
@@ -86,6 +89,7 @@ public abstract class MixinCamera implements CameraDuck
 			ShoulderSurfingCamera camera = ShoulderSurfingImpl.getInstance().getCamera();
 			Vec3 cameraOffset = camera.calcOffset(cameraIn, level, partialTick, cameraEntity);
 			this.move(-cameraOffset.z(), cameraOffset.y(), cameraOffset.x());
+			com.github.exopandora.shouldersurfing.camera.target.TargetService.captureCamera(cameraIn.getPosition(), this.xRot, this.yRot);
 			Vec2f sway = camera.calcSway(camera, cameraEntity, partialTick);
 			this.zRot = sway.y();
 			this.setRotation(this.yRot, this.xRot + sway.x());
@@ -109,9 +113,35 @@ public abstract class MixinCamera implements CameraDuck
 	}
 
 	@Override
+	public void shouldersurfing$constrainPosition(float partialTick)
+	{
+		Camera camera = (Camera) (Object) this;
+		if (camera.getEntity() != null && !camera.getEntity().isSpectator()
+				&& Perspective.current() == Perspective.SHOULDER_SURFING)
+			this.setPosition(com.github.exopandora.shouldersurfing.camera.duel.CameraCollision.constrain(
+					camera.getEntity(), camera.getEntity().getEyePosition(partialTick), camera.getPosition()));
+	}
+
+	@Override
 	public void shouldersurfing$applyShake(double x, double y, double z, float xRot, float yRot, float zRot)
 	{
-		this.move(x, y, z);
+		Camera camera = (Camera) (Object) this;
+		Vec3 start = camera.getPosition();
+		// Same lateral/up/distance convention as ShoulderSurfing's camera offset.
+		this.move(-z, y, x);
+		Vec3 end = camera.getPosition();
+		var minecraft = net.minecraft.client.Minecraft.getInstance();
+		if (minecraft.level != null && camera.getEntity() != null && start.distanceToSqr(end) > 1.0E-10)
+		{
+			var hit = minecraft.level.clip(new net.minecraft.world.level.ClipContext(start, end,
+					net.minecraft.world.level.ClipContext.Block.VISUAL,
+					net.minecraft.world.level.ClipContext.Fluid.NONE, camera.getEntity()));
+			if (hit.getType() != net.minecraft.world.phys.HitResult.Type.MISS)
+			{
+				double distance = Math.max(0, start.distanceTo(hit.getLocation()) - 0.1);
+				this.setPosition(start.add(end.subtract(start).normalize().scale(distance)));
+			}
+		}
 		this.setRotation(this.yRot + yRot, this.xRot + xRot);
 		this.zRot += zRot;
 	}

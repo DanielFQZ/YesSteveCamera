@@ -7,4 +7,6 @@ public interface CameraDuck
 	void shouldersurfing$setZRot(float zRot);
 
 	void shouldersurfing$applyShake(double x, double y, double z, float xRot, float yRot, float zRot);
+
+	void shouldersurfing$constrainPosition(float partialTick);
 }

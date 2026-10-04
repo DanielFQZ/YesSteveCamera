@@ -10,6 +10,8 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.TamableAnimal;
 import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.util.Mth;
 
@@ -26,6 +28,16 @@ public final class TargetService
 	private static UUID owner;
 	private static UUID session = UUID.randomUUID();
 	private static LivingEntity target;
+	private static Vec3 cameraOrigin;
+	private static Vec3 cameraForward;
+
+	public static void captureCamera(Vec3 origin, float pitch, float yaw)
+	{
+		cameraOrigin = origin;
+		cameraForward = Vec3.directionFromRotation(pitch, yaw);
+	}
+
+	public static LivingEntity target() { return target; }
 	private static int hiddenTicks;
 	private static long selectionVersion;
 	private static volatile TargetSnapshot snapshot;
@@ -36,11 +48,13 @@ public final class TargetService
 	public static void configure(TargetingConfig value) { config = value; cancel(); }
 	public static TargetingConfig config() { return config; }
 
-	public static boolean enabled()
+	public static boolean enabled() { return available() && Minecraft.getInstance().screen == null; }
+
+	private static boolean available()
 	{
 		Minecraft mc = Minecraft.getInstance();
 		return mc.level != null && mc.player != null && mc.player.isAlive() && !mc.player.isSpectator()
-				&& mc.screen == null && mc.getCameraEntity() == mc.player && ShoulderSurfingImpl.getInstance().isShoulderSurfing();
+				&& mc.getCameraEntity() == mc.player && ShoulderSurfingImpl.getInstance().isShoulderSurfing();
 	}
 
 	public static void tick(boolean buttonDown)
@@ -52,8 +66,17 @@ public final class TargetService
 			level = mc.level;
 			owner = currentOwner;
 			session = UUID.randomUUID();
+			cameraOrigin = null;
+			cameraForward = null;
 			cancel();
 			BUTTON.suppressUntilRelease();
+		}
+		// Chat is an inspection surface: retain the lock but suspend actions and held input.
+		if (available() && mc.screen instanceof net.minecraft.client.gui.screens.ChatScreen)
+		{
+			BUTTON.suppressUntilRelease();
+			if (target != null && !legal(target)) cancel();
+			return;
 		}
 		if(!enabled())
 		{
@@ -69,12 +92,13 @@ public final class TargetService
 			default -> { }
 		}
 		if(target == null) return;
-		if(!legal(target) || mc.player.distanceToSqr(target) > config.range() * config.range())
+		// Range gates acquisition only. A loaded, valid lock can be followed at any distance.
+		if(!legal(target))
 		{
 			cancel();
 			return;
 		}
-		hiddenTicks = mc.player.hasLineOfSight(target) ? 0 : hiddenTicks + 1;
+		hiddenTicks = hasUnobstructedView(target) ? 0 : hiddenTicks + 1;
 		if(hiddenTicks > config.occlusionGraceTicks()) { cancel(); return; }
 		publish();
 	}
@@ -84,15 +108,15 @@ public final class TargetService
 		if(!enabled()) return;
 		Minecraft mc = Minecraft.getInstance();
 		var camera = ShoulderSurfingImpl.getInstance().getCamera();
-		Vec3 forward = Vec3.directionFromRotation(camera.getXRot(), camera.getYRot());
-		Vec3 origin = mc.player.getEyePosition();
+		Vec3 forward = cameraForward == null ? Vec3.directionFromRotation(camera.getXRot(), camera.getYRot()) : cameraForward;
+		Vec3 origin = cameraOrigin == null ? mc.player.getEyePosition() : cameraOrigin;
 		double minDot = Math.cos(Math.toRadians(config.coneDegrees()));
 		List<LivingEntity> candidates = mc.level.getEntitiesOfClass(LivingEntity.class, mc.player.getBoundingBox().inflate(config.range()), TargetService::legal)
 				.stream().filter(entity -> mc.player.distanceToSqr(entity) <= config.range() * config.range())
 				.filter(entity -> direction(origin, entity).dot(forward) >= minDot)
 				.sorted(Comparator.<LivingEntity>comparingDouble(entity -> -direction(origin, entity).dot(forward))
 						.thenComparingDouble(mc.player::distanceToSqr).thenComparing(LivingEntity::getUUID))
-				.limit(128).filter(mc.player::hasLineOfSight).toList();
+				.limit(128).filter(TargetService::hasUnobstructedView).toList();
 		if(candidates.isEmpty()) return;
 		int current = candidates.indexOf(target);
 		target = candidates.get((current + 1) % candidates.size());
@@ -104,6 +128,15 @@ public final class TargetService
 	private static Vec3 direction(Vec3 origin, LivingEntity entity)
 	{
 		return entity.getBoundingBox().getCenter().subtract(origin).normalize();
+	}
+
+	/** Same block visibility test as vanilla, without its 128-block distance rejection. */
+	public static boolean hasUnobstructedView(LivingEntity entity)
+	{
+		Minecraft mc = Minecraft.getInstance();
+		if (mc.player == null || mc.level == null || entity.level() != mc.level) return false;
+		return mc.level.clip(new ClipContext(mc.player.getEyePosition(), entity.getEyePosition(),
+				ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, mc.player)).getType() == HitResult.Type.MISS;
 	}
 
 	private static boolean legal(LivingEntity entity)
@@ -136,7 +169,8 @@ public final class TargetService
 	/** Applies only the combat body yaw; camera look direction remains independent. */
 	public static void applyPlayerFacing()
 	{
-		if(target == null || !enabled()) return;
+		if(target == null || !enabled() || !config.faceTarget()
+				|| com.github.exopandora.shouldersurfing.camera.assist.CombatAssistService.sprintReleasesFacing()) return;
 		Minecraft mc = Minecraft.getInstance();
 		Vec3 delta = target.getBoundingBox().getCenter().subtract(mc.player.getEyePosition());
 		if(delta.horizontalDistanceSqr() < 1.0E-8D) return;
@@ -151,7 +185,8 @@ public final class TargetService
 
 	public static void cancel()
 	{
-		if(target != null) selectionVersion++;
+		com.github.exopandora.shouldersurfing.camera.assist.LockMovementService.reset();
+		if(target != null) { selectionVersion++; com.github.exopandora.shouldersurfing.camera.assist.CombatAssistService.cancel("lock cancelled"); }
 		target = null;
 		snapshot = null;
 		hiddenTicks = 0;

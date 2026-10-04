@@ -9,7 +9,12 @@ public final class ShakeMixer
 {
 	private final Map<String, ShakeInstance> instances = new LinkedHashMap<>();
 
-	public void trigger(ShakePreset preset, String slot, float scale) { instances.put(slot, new ShakeInstance(preset, slot, scale)); }
+	public void trigger(ShakePreset preset, String slot, float scale)
+	{
+		if (slot == null || slot.isBlank() || slot.length() > 128 || !Float.isFinite(scale) || scale < 0 || scale > 10) return;
+		if (!instances.containsKey(slot) && instances.size() >= 32) return;
+		instances.put(slot, new ShakeInstance(preset, slot, scale));
+	}
 	public void stop(String slot) { instances.remove(slot); }
 	public void clear() { instances.clear(); }
 

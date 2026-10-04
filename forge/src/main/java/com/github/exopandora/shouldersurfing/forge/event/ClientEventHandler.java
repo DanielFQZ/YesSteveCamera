@@ -22,15 +22,21 @@ public class ClientEventHandler
 	@SubscribeEvent
 	public static void clientTickEvent(ClientTickEvent event)
 	{
-		if(Phase.START.equals(event.phase) && Minecraft.getInstance().level != null && !Minecraft.getInstance().isPaused())
-		{
-			ShoulderSurfingImpl.getInstance().tick();
-			CameraShakeService.tick();
-			TargetService.tick(Minecraft.getInstance().options.keyPickItem.isDown());
-			TargetService.applyPlayerFacing();
-		}
+		if (event.phase != Phase.START) return;
+		Minecraft mc = Minecraft.getInstance();
+		com.github.exopandora.shouldersurfing.camera.CameraRuntime.tick();
+		if (mc.level != null && !mc.isPaused()) ShoulderSurfingImpl.getInstance().tick();
+		TargetService.tick(CameraKeys.LOCK.isDown());
+		if (!TargetService.enabled()) com.github.exopandora.shouldersurfing.camera.assist.CombatAssistService.cancel(mc.screen != null ? "UI opened" : "camera unavailable");
+		while (CameraKeys.LOCK.consumeClick()) { /* Poll held state, not accumulated clicks. */ }
+
 	}
 	
+	public static void assistEndTickEvent(ClientTickEvent event)
+	{
+		if (event.phase == Phase.END) com.github.exopandora.shouldersurfing.camera.assist.CombatAssistService.endTick();
+	}
+
 	@SubscribeEvent
 	public static void preRenderGuiOverlayEvent(RenderGuiOverlayEvent.Pre event)
 	{
@@ -43,6 +49,7 @@ public class ClientEventHandler
 	@SubscribeEvent
 	public static void registerGuiOverlaysEvent(RegisterGuiOverlaysEvent event)
 	{
+		event.registerAboveAll("target_lock", (gui, graphics, partial, width, height) -> TargetOverlay.render(graphics, width, height));
 		event.registerBelow(VanillaGuiOverlay.CROSSHAIR.id(), "pre_crosshair", (gui, guiGraphics, partialTick, screenWith, screenHeight) ->
 		{
 			CrosshairRenderer crosshairRenderer = ShoulderSurfingImpl.getInstance().getCrosshairRenderer();
@@ -68,6 +75,7 @@ public class ClientEventHandler
 	{
 		if(RenderLevelStageEvent.Stage.AFTER_SKY.equals(event.getStage()))
 		{
+			TargetOverlay.project(event);
 			ShoulderSurfingImpl.getInstance().getCrosshairRenderer().updateDynamicRaytrace(event.getCamera(), event.getPoseStack().last().pose(), event.getProjectionMatrix(), event.getPartialTick());
 		}
 	}
@@ -77,12 +85,18 @@ public class ClientEventHandler
 	{
 		ShoulderSurfingImpl.getInstance().getInputHandler().updateMovementInput(event.getInput());
 		ShoulderSurfingImpl.getInstance().updatePlayerRotations();
+		TargetService.applyPlayerFacing();
 	}
 	
 	@SubscribeEvent
 	public static void computeCameraAnglesEvent(ViewportEvent.ComputeCameraAngles event)
 	{
+		var sample = CameraShakeService.sample((float) event.getPartialTick());
 		CameraShakeService.apply(event.getCamera(), (float) event.getPartialTick());
+		((CameraDuck) event.getCamera()).shouldersurfing$constrainPosition((float) event.getPartialTick());
+		// Forge writes the event angles back after dispatch; camera-only rotation is overwritten.
+		event.setPitch(event.getPitch() + sample.rotateX());
+		event.setYaw(event.getYaw() + sample.rotateY());
 		event.setRoll(event.getRoll() + ((CameraDuck) event.getCamera()).shouldersurfing$getZRot());
 	}
 

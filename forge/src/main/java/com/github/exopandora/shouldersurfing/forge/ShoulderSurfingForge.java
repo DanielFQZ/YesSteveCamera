@@ -57,21 +57,18 @@ public class ShoulderSurfingForge
 	@SubscribeEvent
 	public void clientSetup(FMLClientSetupEvent event)
 	{
-		try
-		{
-			TargetService.configure(TargetingConfig.load(net.minecraft.client.Minecraft.getInstance().gameDirectory.toPath().resolve("config/yesstevecamera/targeting.json")));
-		}
-		catch (Exception exception)
-		{
-			ShoulderSurfingCommon.LOGGER.warn("Failed to load YesSteveCamera targeting config; using defaults", exception);
-		}
-		CameraShakeService.reload(net.minecraft.client.Minecraft.getInstance().gameDirectory.toPath());
+		event.enqueueWork(() -> {
+			com.github.exopandora.shouldersurfing.camera.CameraRuntime.reload();
+			com.github.exopandora.shouldersurfing.forge.compat.YsmBridgeBootstrap.tryInstall();
+			com.github.exopandora.shouldersurfing.forge.compat.YssCombatBridge.install();
+		});
 		MinecraftForge.EVENT_BUS.addListener(ClientEventHandler::clientTickEvent);
+		MinecraftForge.EVENT_BUS.addListener(EventPriority.LOWEST, ClientEventHandler::assistEndTickEvent);
 		MinecraftForge.EVENT_BUS.addListener(EventPriority.HIGHEST, true, ClientEventHandler::preRenderGuiOverlayEvent);
 		MinecraftForge.EVENT_BUS.addListener(ClientEventHandler::renderLevelStageEvent);
 		MinecraftForge.EVENT_BUS.addListener(EventPriority.LOW, ClientEventHandler::movementInputUpdateEvent);
-		MinecraftForge.EVENT_BUS.addListener(ClientEventHandler::computeCameraAnglesEvent);
-		MinecraftForge.EVENT_BUS.addListener(ClientEventHandler::computeFovEvent);
+		MinecraftForge.EVENT_BUS.addListener(EventPriority.LOWEST, ClientEventHandler::computeCameraAnglesEvent);
+		MinecraftForge.EVENT_BUS.addListener(EventPriority.LOWEST, ClientEventHandler::computeFovEvent);
 		
 		Map<String, Object> modProperties = ModLoadingContext.get().getActiveContainer().getModInfo().getModProperties();
 		List<?> incompatibleModIds = (List<?>) modProperties.getOrDefault("incompatibleMods", Collections.emptyList());
@@ -93,7 +90,7 @@ public class ShoulderSurfingForge
 		ShoulderSurfingImpl.getInstance().init();
 		if(ShoulderSurfingCommon.MOD_ID.equals(event.getConfig().getModId()) && event.getConfig().getType() == Type.CLIENT)
 		{
-			CameraShakeService.reload(net.minecraft.client.Minecraft.getInstance().gameDirectory.toPath());
+			net.minecraft.client.Minecraft.getInstance().execute(com.github.exopandora.shouldersurfing.camera.CameraRuntime::reload);
 		}
 	}
 	
@@ -103,13 +100,14 @@ public class ShoulderSurfingForge
 		if(ShoulderSurfingCommon.MOD_ID.equals(event.getConfig().getModId()) && event.getConfig().getType() == Type.CLIENT)
 		{
 			Config.onConfigReload();
-			CameraShakeService.reload(net.minecraft.client.Minecraft.getInstance().gameDirectory.toPath());
+			net.minecraft.client.Minecraft.getInstance().execute(com.github.exopandora.shouldersurfing.camera.CameraRuntime::reload);
 		}
 	}
 	
 	@SubscribeEvent
 	public void registerKeyMappingsEvent(RegisterKeyMappingsEvent event)
 	{
+		event.register(com.github.exopandora.shouldersurfing.forge.event.CameraKeys.LOCK);
 		event.register(InputHandler.CAMERA_LEFT);
 		event.register(InputHandler.CAMERA_RIGHT);
 		event.register(InputHandler.CAMERA_IN);

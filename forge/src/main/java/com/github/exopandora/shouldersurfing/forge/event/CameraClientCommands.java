@@ -3,7 +3,9 @@ package com.github.exopandora.shouldersurfing.forge.event;
 import com.github.exopandora.shouldersurfing.camera.shake.CameraShakeService;
 import com.github.exopandora.shouldersurfing.camera.target.TargetService;
 import com.mojang.brigadier.arguments.FloatArgumentType;
-import com.mojang.brigadier.arguments.StringArgumentType;
+import com.mojang.brigadier.CommandDispatcher;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.arguments.ResourceLocationArgument;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
 import net.minecraftforge.api.distmarker.Dist;
@@ -20,12 +22,46 @@ public final class CameraClientCommands
 	@SubscribeEvent
 	public static void register(RegisterClientCommandsEvent event)
 	{
-		event.getDispatcher().register(Commands.literal("yesstevecamera")
+		register(event.getDispatcher());
+	}
+
+	public static void register(CommandDispatcher<CommandSourceStack> dispatcher)
+	{
+		dispatcher.register(Commands.literal("yesstevecamera")
+				.then(Commands.literal("reload").executes(context -> {
+					String error = com.github.exopandora.shouldersurfing.camera.CameraRuntime.reload();
+					if (error != null) { context.getSource().sendFailure(Component.literal("Camera reload failed (old config retained): " + error)); return 0; }
+					context.getSource().sendSuccess(() -> Component.literal("Camera reloaded: " + CameraShakeService.presetCount() + " shake presets"), false);
+					return 1;
+				}))
+				.then(Commands.literal("status").executes(context -> {
+					context.getSource().sendSuccess(() -> Component.literal("Target: " + TargetService.targetName()
+							+ " | Presets: " + CameraShakeService.presetCount() + " | YSM: "
+							+ com.github.exopandora.shouldersurfing.forge.compat.YsmBridgeBootstrap.status()
+							+ " | YSS: " + com.github.exopandora.shouldersurfing.forge.compat.YssCombatBridge.status()
+							+ " | Duel: " + com.github.exopandora.shouldersurfing.camera.duel.DuelCameraService.status()
+							+ " | Assist: " + com.github.exopandora.shouldersurfing.camera.assist.CombatAssistService.status()), false);
+					return 1;
+				}))
+				.then(Commands.literal("duel")
+						.then(Commands.literal("on").executes(context -> {
+							com.github.exopandora.shouldersurfing.camera.duel.DuelCameraService.setEnabled(true);
+							context.getSource().sendSuccess(() -> Component.literal("Duel camera enabled (subject to duel.json)"), false); return 1;
+						}))
+						.then(Commands.literal("off").executes(context -> {
+							com.github.exopandora.shouldersurfing.camera.duel.DuelCameraService.setEnabled(false);
+							context.getSource().sendSuccess(() -> Component.literal("Duel camera disabled; target lock retained"), false); return 1;
+						})))
+				.then(Commands.literal("assist_cancel").executes(context -> {
+					com.github.exopandora.shouldersurfing.camera.assist.CombatAssistService.cancel("manual cancel"); return 1;
+				}))
 				.then(Commands.literal("shake")
-						.then(Commands.literal("play").then(Commands.argument("preset", StringArgumentType.word())
-								.executes(context -> play(context.getSource(), StringArgumentType.getString(context, "preset"), "command", 1.0F))
+						.then(Commands.literal("play").then(Commands.argument("preset", ResourceLocationArgument.id())
+								.suggests((context, builder) -> net.minecraft.commands.SharedSuggestionProvider.suggest(CameraShakeService.presetIds(), builder))
+								.executes(context -> play(context.getSource(), ResourceLocationArgument.getId(context, "preset").toString(), "command", 1.0F))
 								.then(Commands.argument("scale", FloatArgumentType.floatArg(0, 10))
-										.executes(context -> play(context.getSource(), StringArgumentType.getString(context, "preset"), "command", FloatArgumentType.getFloat(context, "scale"))))))
+										.executes(context -> play(context.getSource(), ResourceLocationArgument.getId(context, "preset").toString(), "command", FloatArgumentType.getFloat(context, "scale"))))))
+						.then(Commands.literal("stop_all").executes(context -> { CameraShakeService.reset(); return 1; }))
 						.then(Commands.literal("stop").executes(context -> { CameraShakeService.stop("command"); context.getSource().sendSuccess(() -> Component.literal("Camera shake stopped"), false); return 1; })))
 				.then(Commands.literal("target").then(Commands.literal("cancel").executes(context -> { TargetService.cancel(); context.getSource().sendSuccess(() -> Component.literal("Target lock cancelled"), false); return 1; }))));
 	}

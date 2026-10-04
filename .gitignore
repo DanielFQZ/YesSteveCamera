@@ -158,7 +158,7 @@ modules.xml
 *.ipr
 
 ### Test ###
-src/test/
+# Camera regression tests are tracked.
 
 ### ForgeGradle ###
 /.apt_generated_tests/

@@ -14,9 +14,9 @@ import java.util.Map;
 
 /** Client rules only; they never grant server-side attack permissions. */
 public record TargetingConfig(double range, double coneDegrees, int holdTicks, int occlusionGraceTicks,
-		Map<String, TargetClassification> entities)
+		Map<String, TargetClassification> entities, boolean faceTarget)
 {
-	public static final TargetingConfig DEFAULT = new TargetingConfig(24, 70, 9, 20, Map.of());
+	public static final TargetingConfig DEFAULT = new TargetingConfig(24, 70, 9, 20, Map.of(), false);
 	public TargetingConfig
 	{
 		if(!Double.isFinite(range) || range < 1 || range > 64) throw new IllegalArgumentException("range: 1..64");
@@ -37,7 +37,8 @@ public record TargetingConfig(double range, double coneDegrees, int holdTicks, i
 					  "cone_degrees": 70,
 					  "hold_ticks": 9,
 					  "occlusion_grace_ticks": 20,
-					  "entities": {}
+					  "entities": {},
+					  "face_target": false
 					}
 					""");
 		}
@@ -52,7 +53,7 @@ public record TargetingConfig(double range, double coneDegrees, int holdTicks, i
 				rules.put(entry.getKey(), TargetClassification.valueOf(entry.getValue().getAsString()));
 			});
 			return new TargetingConfig(number(root, "range", 24), number(root, "cone_degrees", 70),
-					integer(root, "hold_ticks", 9), integer(root, "occlusion_grace_ticks", 20), rules);
+					integer(root, "hold_ticks", 9), integer(root, "occlusion_grace_ticks", 20), rules, root.has("face_target") && root.get("face_target").getAsBoolean());
 		}
 		catch(RuntimeException exception)
 		{

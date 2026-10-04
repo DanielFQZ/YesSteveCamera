@@ -164,7 +164,8 @@ public class ShoulderSurfingCamera implements IShoulderSurfingCamera
 			}
 		}
 		
-		return new Vec2f(cameraXRotWithOffset, cameraYRotWithOffset);
+		return com.github.exopandora.shouldersurfing.camera.duel.DuelCameraService.prepare(this, cameraEntity,
+				partialTick, new Vec2f(cameraXRotWithOffset, cameraYRotWithOffset));
 	}
 	
 	public Vec3 calcOffset(Camera camera, BlockGetter level, float partialTick, Entity cameraEntity)
@@ -254,6 +255,8 @@ public class ShoulderSurfingCamera implements IShoulderSurfingCamera
 		this.targetOffset = targetOffset;
 		Vec3 drag = this.calcCameraDrag(camera, cameraEntity, partialTick);
 		Vec3 lerpedOffset = this.offsetO.lerp(this.offset, partialTick).add(drag);
+		boolean duel = com.github.exopandora.shouldersurfing.camera.duel.DuelCameraService.blending();
+		if (duel) lerpedOffset = com.github.exopandora.shouldersurfing.camera.duel.DuelCameraService.offset(camera, lerpedOffset);
 		
 		if(cameraEntity.isSpectator())
 		{
@@ -270,7 +273,9 @@ public class ShoulderSurfingCamera implements IShoulderSurfingCamera
 			}
 			
 			double lerpedMaxDistance = Mth.lerp(partialTick, this.maxCameraDistanceO, this.maxCameraDistance);
-			this.cameraDistance = Math.min(targetCameraDistance, lerpedMaxDistance);
+			this.cameraDistance = duel
+					? com.github.exopandora.shouldersurfing.camera.duel.DuelCameraService.collisionDistance(targetCameraDistance)
+					: Math.min(targetCameraDistance, lerpedMaxDistance);
 			this.renderOffset = lerpedOffset.normalize().scale(this.cameraDistance);
 		}
 		
@@ -401,6 +406,8 @@ public class ShoulderSurfingCamera implements IShoulderSurfingCamera
 			
 			float scaledXRot = (float) (xRot * 0.15F);
 			float scaledYRot = (float) (yRot * 0.15F);
+			if (com.github.exopandora.shouldersurfing.camera.assist.LockMovementService.mouse(scaledYRot, scaledXRot)) return true;
+			if (com.github.exopandora.shouldersurfing.camera.duel.DuelCameraService.mouse(scaledYRot, scaledXRot)) return true;
 			
 			if(this.instance.isFreeLooking())
 			{
@@ -421,7 +428,8 @@ public class ShoulderSurfingCamera implements IShoulderSurfingCamera
 				cameraYRot = constraintRotations.y();
 			}
 			
-			if(this.instance.isCameraDecoupled())
+			if(this.instance.isCameraDecoupled()
+					&& !com.github.exopandora.shouldersurfing.camera.assist.CombatAssistService.ownsFacing())
 			{
 				boolean isMoving = player.input.leftImpulse != 0.0F || player.input.forwardImpulse != 0.0F || player.isFallFlying();
 				

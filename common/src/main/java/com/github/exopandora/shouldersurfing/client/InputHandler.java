@@ -196,6 +196,7 @@ public class InputHandler
 	{
 		Minecraft minecraft = Minecraft.getInstance();
 		Entity cameraEntity = minecraft.getCameraEntity();
+		com.github.exopandora.shouldersurfing.camera.assist.AnyDirectionSprintService.request(input);
 		
 		for(IPlayerInputCallback callback : ShoulderSurfingRegistrar.getInstance().getPlayerInputCallbacks())
 		{
@@ -205,6 +206,7 @@ public class InputHandler
 			}
 		}
 		
+		if (com.github.exopandora.shouldersurfing.camera.assist.LockMovementService.apply(input)) return;
 		Vec2f moveVector = new Vec2f(input.leftImpulse, input.forwardImpulse);
 		
 		if(this.instance.isShoulderSurfing() && this.instance.isFreeLooking())
@@ -247,6 +249,6 @@ public class InputHandler
 	
 	private static @NotNull KeyMapping createKeyMapping(String key, int keyCode)
 	{
-		return new KeyMapping("key." + MOD_ID + "." + key, keyCode, "Shoulder Surfing");
+		return new KeyMapping("key." + MOD_ID + "." + key, keyCode, "key.categories.yesstevecamera");
 	}
 }

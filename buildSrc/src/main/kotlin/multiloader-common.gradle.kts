@@ -99,3 +99,8 @@ tasks.withType<AbstractArchiveTask>().configureEach {
     isPreserveFileTimestamps = false
     isReproducibleFileOrder = true
 }
+
+// Resource expansion must not use the Windows system code page for UTF-8 language files.
+tasks.withType<ProcessResources>().configureEach {
+    filteringCharset = "UTF-8"
+}

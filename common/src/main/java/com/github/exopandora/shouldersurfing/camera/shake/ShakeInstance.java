@@ -22,6 +22,7 @@ public final class ShakeInstance
 	public ShakeSample sample(double partialSeconds)
 	{
 		double time = elapsed + Math.max(0.0D, partialSeconds);
+		if (time >= preset.duration()) return ShakeSample.zero();
 		ShakeSample sample = ShakeSample.zero();
 		for (ShakeTrack track : preset.tracks())
 		{

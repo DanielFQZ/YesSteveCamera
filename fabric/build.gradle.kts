@@ -72,9 +72,10 @@ tasks.withType<ProcessResources> {
 	)
 	
 	inputs.properties(properties)
+	inputs.property("preserveJsonEscapes", true)
 	
 	filesMatching(listOf("pack.mcmeta", "fabric.mod.json", "**/lang/*.json")) {
-		expand(properties)
+		expand(properties) { escapeBackslash = true }
 	}
 }
 
