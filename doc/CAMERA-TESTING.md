@@ -84,3 +84,22 @@ Java17 / Gradle8.7，示例（PowerShell）：
 ```
 
 不传 ysmJar 只构建核心，没有动画指令帧桥；发布测试包必须传入与客户端对应的 YSM 开发 JAR。产物在 `forge/build/libs`，使用不带 sources/api 分类的完整 Forge JAR。
+## P5 动作全景、镜头缓冲与滚轮调距
+
+YSM 动画指令帧可调用：
+
+```text
+ctrl.camera_preset('yesstevecamera:action_overview', 2.8);
+ctrl.camera_preset_stop();
+```
+
+`camera_preset` 的第二个参数是最长持续时间（秒）。预设默认创建在
+`config/yesstevecamera/overviews/action_overview.json`，动作开始时记录当前玩家和锁定目标的取景区域，期间镜头保持该区域，超时或调用 stop 后平滑恢复。动作预设不持续追踪高速移动的玩家，适合飞向目标再返回的技能。
+
+`config/yesstevecamera/motion.json` 控制普通镜头的启动/停止响应和滚轮调距：
+
+- `startSeconds` / `stopSeconds` / `maxLag`：空中、root 位移使用的跟随响应和最大滞后；
+- `groundStartSeconds` / `groundStopSeconds` / `groundMaxLag`：地面行走和奔跑使用的独立参数，默认更紧跟；
+- `wheelZoom` / `wheelStep`：是否允许第三人称滚轮调距及每格步长。
+
+第三人称且没有打开界面时，滚轮向上拉近、向下拉远；距离上限为 `max_offset_z`，测试版默认扩大到 20 格。墙体碰撞仍会立即把镜头收回，离开墙体时再缓慢恢复。

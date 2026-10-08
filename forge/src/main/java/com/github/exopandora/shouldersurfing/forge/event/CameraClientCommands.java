@@ -40,7 +40,10 @@ public final class CameraClientCommands
 							+ com.github.exopandora.shouldersurfing.forge.compat.YsmBridgeBootstrap.status()
 							+ " | YSS: " + com.github.exopandora.shouldersurfing.forge.compat.YssCombatBridge.status()
 							+ " | Duel: " + com.github.exopandora.shouldersurfing.camera.duel.DuelCameraService.status()
-							+ " | Assist: " + com.github.exopandora.shouldersurfing.camera.assist.CombatAssistService.status()), false);
+							+ " | Assist: " + com.github.exopandora.shouldersurfing.camera.assist.CombatAssistService.status()
+							+ " | Motion: " + com.github.exopandora.shouldersurfing.camera.motion.CameraMotionService.status()
+							+ " | FOV: " + com.github.exopandora.shouldersurfing.camera.fov.MovementFovService.status()
+							+ " | Input: " + com.github.exopandora.shouldersurfing.camera.CombatInputState.status()), false);
 					return 1;
 				}))
 				.then(Commands.literal("duel")
@@ -55,6 +58,19 @@ public final class CameraClientCommands
 				.then(Commands.literal("assist_cancel").executes(context -> {
 					com.github.exopandora.shouldersurfing.camera.assist.CombatAssistService.cancel("manual cancel"); return 1;
 				}))
+				.then(Commands.literal("preset")
+						.then(Commands.literal("play").then(Commands.argument("preset", ResourceLocationArgument.id())
+								.suggests((context, builder) -> net.minecraft.commands.SharedSuggestionProvider.suggest(
+										com.github.exopandora.shouldersurfing.camera.motion.CameraMotionService.presetIds(), builder))
+								.then(Commands.argument("seconds", FloatArgumentType.floatArg(0.05F, 60))
+										.executes(context -> {
+											boolean started = com.github.exopandora.shouldersurfing.camera.motion.CameraMotionService.begin(
+													ResourceLocationArgument.getId(context, "preset").toString(), FloatArgumentType.getFloat(context, "seconds"));
+											if (!started) context.getSource().sendFailure(Component.literal("Preset unavailable: select a loaded preset and enter shoulder third person"));
+											else context.getSource().sendSuccess(() -> Component.literal("Action overview started"), false);
+											return started ? 1 : 0;
+										}))))
+						.then(Commands.literal("stop").executes(context -> { com.github.exopandora.shouldersurfing.camera.motion.CameraMotionService.stop(); return 1; })))
 				.then(Commands.literal("shake")
 						.then(Commands.literal("play").then(Commands.argument("preset", ResourceLocationArgument.id())
 								.suggests((context, builder) -> net.minecraft.commands.SharedSuggestionProvider.suggest(CameraShakeService.presetIds(), builder))

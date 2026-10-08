@@ -63,6 +63,8 @@ public class ShoulderSurfingForge
 			com.github.exopandora.shouldersurfing.forge.compat.YssCombatBridge.install();
 		});
 		MinecraftForge.EVENT_BUS.addListener(ClientEventHandler::clientTickEvent);
+		MinecraftForge.EVENT_BUS.addListener(ClientEventHandler::mouseScroll);
+		MinecraftForge.EVENT_BUS.addListener(ClientEventHandler::blockHighlight);
 		MinecraftForge.EVENT_BUS.addListener(EventPriority.LOWEST, ClientEventHandler::assistEndTickEvent);
 		MinecraftForge.EVENT_BUS.addListener(EventPriority.HIGHEST, true, ClientEventHandler::preRenderGuiOverlayEvent);
 		MinecraftForge.EVENT_BUS.addListener(ClientEventHandler::renderLevelStageEvent);

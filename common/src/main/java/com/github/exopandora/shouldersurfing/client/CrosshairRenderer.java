@@ -14,6 +14,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.multiplayer.MultiPlayerGameMode;
 import net.minecraft.resources.ResourceLocation;
+import com.github.exopandora.shouldersurfing.camera.CombatInputState;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.GameType;
@@ -99,10 +100,11 @@ public class CrosshairRenderer implements ICrosshairRenderer
 	@Override
 	public boolean doRenderCrosshair()
 	{
+		if (Config.CLIENT.hideCrosshairWithWeapon() && CombatInputState.active()) return false;
 		return Config.CLIENT.getCrosshairVisibility(Perspective.current()).doRender(Minecraft.getInstance().hitResult, this.instance.isAiming()) &&
 			(this.crosshairOffset != null || !this.isCrosshairDynamic(Minecraft.getInstance().getCameraEntity()));
 	}
-	
+
 	@Override
 	public boolean doRenderObstructionCrosshair()
 	{

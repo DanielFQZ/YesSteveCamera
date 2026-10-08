@@ -19,8 +19,10 @@ public final class DuelCameraService
 	private static double previousTime = Double.NaN, dt, weight, mouseYaw, mousePitch;
 	private static Vec3 worldOffset = Vec3.ZERO;
 	private static double collisionDistance = Double.NaN;
+	private static double userZoom;
 	private DuelCameraService() {}
-	public static void configure(DuelConfig value) { config = value; sessionEnabled = true; reset(); }
+	public static void configure(DuelConfig value) { config = value; sessionEnabled = true; userZoom = 0; reset(); }
+	public static void zoom(double delta) { userZoom = Mth.clamp(userZoom + delta, -3, 6); }
 	public static void setEnabled(boolean enabled) { sessionEnabled = enabled; }
 	public static void reset()
 	{
@@ -43,6 +45,9 @@ public final class DuelCameraService
 	}
 	public static boolean mouse(double yaw, double pitch)
 	{
+		// Action overview changes the camera position, but deliberately leaves
+		// mouse look to ShoulderSurfing's normal camera controls.
+		if (com.github.exopandora.shouldersurfing.camera.motion.CameraMotionService.exclusive()) return false;
 		if (!eligible()) return false;
 		mouseYaw = Mth.clamp(mouseYaw + yaw, -config.mouseYawLimit(), config.mouseYawLimit());
 		mousePitch = Mth.clamp(mousePitch + pitch, -config.mousePitchLimit(), config.mousePitchLimit());
@@ -78,7 +83,17 @@ public final class DuelCameraService
 		// Conservative FOV leaves room for vanilla sprint/zoom modifiers and frame edges.
 		var frame = DuelFraming.fit(entity.getEyePosition(partial), playerBox, targetBox, yaw, pitch,
 				Math.min(60, mc.options.fov().get()), aspect, config);
-		worldOffset = !hasFrame ? frame.offset() : worldOffset.lerp(frame.offset(), blend);
+		Vec3 requested = frame.offset().subtract(DuelFraming.forward(yaw, pitch).scale(userZoom));
+		if (requested.length() > config.maxDistance()) requested = requested.normalize().scale(config.maxDistance());
+		// Rotation/activation can remain soft, but the position must catch a
+		// moving target quickly enough to keep both subjects on screen.
+		double positionBlend = DuelFraming.blend(dt, config.positionSmoothSeconds());
+		if (hasFrame)
+		{
+			double displacement = worldOffset.distanceTo(requested);
+			positionBlend = Math.max(positionBlend, Math.min(1, displacement / 3.0));
+		}
+		worldOffset = !hasFrame ? requested : worldOffset.lerp(requested, positionBlend);
 		hasFrame = true;
 		limited = frame.limited();
 		mouseYaw *= Math.exp(-dt / 1.0); mousePitch *= Math.exp(-dt / 1.0);

@@ -24,6 +24,7 @@ public final class YssCombatBridge
 	public static void install()
 	{
 		if (!ModList.get().isLoaded("yessteveskill")) { status = "YSS absent"; return; }
+		installCombatInput();
 		try
 		{
 			var loader = YssCombatBridge.class.getClassLoader();
@@ -61,6 +62,26 @@ public final class YssCombatBridge
 			ShoulderSurfingCommon.LOGGER.info("YesSteveCamera YSS: {}", status);
 		}
 		catch (ReflectiveOperationException | LinkageError | RuntimeException exception) { fail(exception); }
+	}
+
+	private static void installCombatInput()
+	{
+		try
+		{
+			// Resolve this optional public API once. Frame/input queries use the returned supplier directly.
+			Class<?> api = Class.forName("io.github.tt432.yessteveskill.client.input.YssCombatInput", true,
+					YssCombatBridge.class.getClassLoader());
+			java.util.function.BooleanSupplier perspective = () ->
+					com.github.exopandora.shouldersurfing.client.ShoulderSurfingImpl.getInstance().isShoulderSurfing();
+			var state = (java.util.function.BooleanSupplier) api
+					.getMethod("registerCameraPerspective", java.util.function.BooleanSupplier.class).invoke(null, perspective);
+			com.github.exopandora.shouldersurfing.camera.CombatInputState.install(state);
+			ShoulderSurfingCommon.LOGGER.info("YesSteveCamera YSS combat input policy connected");
+		}
+		catch (ReflectiveOperationException | LinkageError | RuntimeException exception)
+		{
+			ShoulderSurfingCommon.LOGGER.warn("YesSteveCamera combat input API unavailable; mining and block highlights remain unchanged", exception);
+		}
 	}
 
 	private static void installConfirmedHitListener(ClassLoader loader)

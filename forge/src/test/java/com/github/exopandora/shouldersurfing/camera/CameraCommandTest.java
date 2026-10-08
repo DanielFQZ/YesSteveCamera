@@ -10,6 +10,18 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class CameraCommandTest
 {
+	@Test void overviewCommandIncludesRequiredDurationAndStop()
+	{
+		var dispatcher = new CommandDispatcher<CommandSourceStack>();
+		CameraClientCommands.register(dispatcher);
+		var parsed = dispatcher.parse("yesstevecamera preset play yesstevecamera:action_overview 5.2", null);
+		assertFalse(parsed.getReader().canRead(), parsed.getExceptions().toString());
+		var context = parsed.getContext().build(parsed.getReader().getString());
+		assertNotNull(context.getCommand()); assertEquals(5.2F, FloatArgumentType.getFloat(context, "seconds"));
+		assertNotNull(dispatcher.parse("yesstevecamera preset stop", null).getContext().build("yesstevecamera preset stop").getCommand());
+		assertNull(dispatcher.parse("yesstevecamera preset play yesstevecamera:action_overview", null).getContext().build("").getCommand());
+	}
+
 	@Test void duelTogglesParseInActualTree()
 	{
 		var dispatcher = new CommandDispatcher<CommandSourceStack>();

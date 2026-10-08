@@ -21,12 +21,14 @@ public final class YsmCameraIntegration
 	{
 		if (installed) return;
 		var binding = CtrlBinding.INSTANCE.get();
-		for (String name : new String[]{"camera_shake", "camera_shake_stop", "camera_hit_begin", "camera_hit_end"})
+		for (String name : new String[]{"camera_shake", "camera_shake_stop", "camera_hit_begin", "camera_hit_end", "camera_preset", "camera_preset_stop"})
 			if (binding.getProperty(name) != null) throw new IllegalStateException("Already registered: ctrl." + name);
 		binding.function("camera_shake", function(false));
 		binding.function("camera_shake_stop", function(true));
 		binding.function("camera_hit_begin", hitFunction(false));
 		binding.function("camera_hit_end", hitFunction(true));
+		binding.function("camera_preset", presetFunction(false));
+		binding.function("camera_preset_stop", presetFunction(true));
 		installed = true;
 	}
 
@@ -46,6 +48,26 @@ public final class YsmCameraIntegration
 				String slot = arguments.getAsString(execution, stop ? 0 : 1);
 				float scale = stop ? 0 : (float) arguments.getAsDouble(execution, 2);
 				return CameraRuntime.enqueue(entity.level(), entity.getUUID(), preset, slot, scale, stop) ? 1F : 0F;
+			}
+		};
+	}
+
+	private static Function presetFunction(boolean stop)
+	{
+		return new Function()
+		{
+			@Override public boolean validateArgumentSize(int size) { return size == (stop ? 0 : 2); }
+			@Override public Object evaluate(ExecutionContext<?> execution, Function.ArgumentCollection arguments)
+			{
+				if (!validateArgumentSize(arguments.size()) || !(execution.entity() instanceof IContext<?> context)
+						|| !context.allowEmitting() || !(context.entity() instanceof Entity entity)
+						|| entity.isRemoved() || !entity.level().isClientSide) return 0F;
+				var animatable = context.animatableEntity();
+				if (animatable == null || animatable.isFakePlayer() || animatable instanceof IPreviewEntity) return 0F;
+				if (stop) return CameraRuntime.enqueueOverview(entity.level(), entity.getUUID(), null, 0, true) ? 1F : 0F;
+				String preset = arguments.getAsString(execution, 0);
+				double duration = arguments.getAsDouble(execution, 1);
+				return CameraRuntime.enqueueOverview(entity.level(), entity.getUUID(), preset, duration, false) ? 1F : 0F;
 			}
 		};
 	}

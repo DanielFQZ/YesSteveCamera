@@ -19,6 +19,18 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 
 public class ClientEventHandler
 {
+	public static void blockHighlight(net.minecraftforge.client.event.RenderHighlightEvent.Block event)
+	{
+		if (com.github.exopandora.shouldersurfing.camera.CombatInputState.active()) event.setCanceled(true);
+	}
+
+	@SubscribeEvent
+	public static void mouseScroll(net.minecraftforge.client.event.InputEvent.MouseScrollingEvent event)
+	{
+		if (com.github.exopandora.shouldersurfing.camera.motion.CameraMotionService.scroll(event.getScrollDelta()))
+			event.setCanceled(true);
+	}
+
 	@SubscribeEvent
 	public static void clientTickEvent(ClientTickEvent event)
 	{

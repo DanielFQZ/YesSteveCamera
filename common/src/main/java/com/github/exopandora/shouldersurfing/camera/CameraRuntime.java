@@ -13,6 +13,9 @@ import java.util.UUID;
 import java.util.ArrayDeque;
 import java.util.HashMap;
 import java.util.Map;
+import com.github.exopandora.shouldersurfing.camera.motion.CameraMotionService;
+import com.github.exopandora.shouldersurfing.camera.motion.MotionConfig;
+import com.github.exopandora.shouldersurfing.camera.motion.OverviewPreset;
 
 public final class CameraRuntime
 {
@@ -21,6 +24,8 @@ public final class CameraRuntime
 	private record HitWindowAction(UUID session, UUID source, String preset, String slot, float scale, boolean stop) {}
 	private static final ArrayDeque<HitWindowAction> HIT_ACTIONS = new ArrayDeque<>();
 	private static final Map<String, CameraHitWindow> HIT_WINDOWS = new HashMap<>();
+	private record OverviewAction(UUID session, UUID source, String preset, double duration, boolean stop) {}
+	private static final ArrayDeque<OverviewAction> OVERVIEW_ACTIONS = new ArrayDeque<>();
 	private static volatile Session session;
 	private CameraRuntime() {}
 
@@ -35,14 +40,19 @@ public final class CameraRuntime
 			session = null;
 			QUEUE.reset();
 			resetHitWindows();
+			synchronized (OVERVIEW_ACTIONS) { OVERVIEW_ACTIONS.clear(); }
+			CameraMotionService.reset();
 			com.github.exopandora.shouldersurfing.camera.assist.LockMovementService.reset();
 			com.github.exopandora.shouldersurfing.camera.assist.AnyDirectionSprintService.reset();
 			CameraShakeService.reset(); CombatAssistService.reset(); com.github.exopandora.shouldersurfing.camera.duel.DuelCameraService.reset();
 			if (mc.level != null && owner != null) session = new Session(mc.level, owner, QUEUE.session());
 		}
-		if (mc.player == null || !mc.player.isAlive()) { QUEUE.reset(); resetHitWindows(); session = null; CameraShakeService.reset(); CombatAssistService.reset(); com.github.exopandora.shouldersurfing.camera.assist.LockMovementService.reset(); com.github.exopandora.shouldersurfing.camera.assist.AnyDirectionSprintService.reset(); com.github.exopandora.shouldersurfing.camera.duel.DuelCameraService.reset(); return; }
-		if (!com.github.exopandora.shouldersurfing.client.ShoulderSurfingImpl.getInstance().isShoulderSurfing())
+		if (mc.player == null || !mc.player.isAlive()) { QUEUE.reset(); resetHitWindows(); synchronized (OVERVIEW_ACTIONS) { OVERVIEW_ACTIONS.clear(); } session = null; CameraShakeService.reset(); CombatAssistService.reset(); com.github.exopandora.shouldersurfing.camera.assist.LockMovementService.reset(); com.github.exopandora.shouldersurfing.camera.assist.AnyDirectionSprintService.reset(); com.github.exopandora.shouldersurfing.camera.duel.DuelCameraService.reset(); CameraMotionService.reset(); return; }
+		if (!com.github.exopandora.shouldersurfing.client.ShoulderSurfingImpl.getInstance().isShoulderSurfing() || mc.player.isSleeping())
+		{
 			com.github.exopandora.shouldersurfing.camera.duel.DuelCameraService.reset();
+			CameraMotionService.reset();
+		}
 		if (mc.isPaused()) return;
 		CameraShakeService.tick();
 		QUEUE.drain(action -> {
@@ -50,6 +60,13 @@ public final class CameraRuntime
 			else if (CameraShakeService.hasPreset(action.preset())) CameraShakeService.trigger(action.preset(), action.slot(), action.scale());
 			else ShoulderSurfingCommon.LOGGER.warn("Unknown YesSteveCamera shake preset: {}", action.preset());
 		});
+		synchronized (OVERVIEW_ACTIONS)
+		{
+			OverviewAction action;
+			while ((action = OVERVIEW_ACTIONS.poll()) != null && session != null && session.token().equals(action.session()))
+				if (action.stop()) CameraMotionService.stop();
+				else CameraMotionService.begin(action.preset(), action.duration());
+		}
 		synchronized (HIT_ACTIONS)
 		{
 			HitWindowAction action;
@@ -68,6 +85,20 @@ public final class CameraRuntime
 		Session current = session;
 		return current != null && current.level() == sourceLevel && current.owner().equals(source)
 				&& QUEUE.offer(new CameraActionQueue.Action(current.token(), preset, slot, scale, stop));
+	}
+
+	public static boolean enqueueOverview(Level sourceLevel, UUID source, String preset, double duration, boolean stop)
+	{
+		Session current = session;
+		if (current == null || current.level() != sourceLevel || !current.owner().equals(source)
+				|| (!stop && (preset == null || !CameraMotionService.presetIds().contains(preset)))
+				|| (!stop && (!Double.isFinite(duration) || duration <= 0 || duration > 60))) return false;
+		synchronized (OVERVIEW_ACTIONS)
+		{
+			if (OVERVIEW_ACTIONS.size() >= 64) return false;
+			OVERVIEW_ACTIONS.add(new OverviewAction(current.token(), source, preset, duration, stop));
+			return true;
+		}
 	}
 
 	/** Queues an animation-defined confirmed-hit window for the local player. */
@@ -113,10 +144,16 @@ public final class CameraRuntime
 			TargetingConfig targetConfig = TargetingConfig.load(directory.resolve("config/yesstevecamera/targeting.json"));
 			AssistConfig assistConfig = AssistConfig.load(directory.resolve("config/yesstevecamera/assist.json"));
 			var duelConfig = com.github.exopandora.shouldersurfing.camera.duel.DuelConfig.load(directory.resolve("config/yesstevecamera/duel.json"));
+			var motionConfig = MotionConfig.load(directory.resolve("config/yesstevecamera/motion.json"));
+			var fovConfig = com.github.exopandora.shouldersurfing.camera.fov.MovementFovConfig.load(directory.resolve("config/yesstevecamera/fov.json"));
+			var overviewPresets = OverviewPreset.load(directory.resolve("config/yesstevecamera/overviews"));
 			CameraShakeService.reload(directory);
 			CombatAssistService.configure(assistConfig);
 			TargetService.configure(targetConfig);
 			com.github.exopandora.shouldersurfing.camera.duel.DuelCameraService.configure(duelConfig);
+			CameraMotionService.configure(motionConfig, overviewPresets);
+			com.github.exopandora.shouldersurfing.camera.fov.MovementFovService.configure(fovConfig);
+			synchronized (OVERVIEW_ACTIONS) { OVERVIEW_ACTIONS.clear(); }
 			QUEUE.reset();
 			resetHitWindows();
 			Session current = session;

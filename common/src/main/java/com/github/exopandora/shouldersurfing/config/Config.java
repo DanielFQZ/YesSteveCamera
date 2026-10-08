@@ -146,6 +146,7 @@ public class Config
 		private final ConfigValue<PickVector> pickVector;
 		
 		private final ConfigValue<CrosshairType> crosshairType;
+		private final BooleanValue hideCrosshairWithWeapon;
 		private final DoubleValue customRaytraceDistance;
 		private final BooleanValue useCustomRaytraceDistance;
 		private final ConfigValue<List<? extends String>> adaptiveCrosshairHoldItems;
@@ -236,7 +237,7 @@ public class Config
 			this.maxOffsetZ = builder
 				.comment("When z-offset is limited this is the maximum amount.")
 				.translation(MOD_ID + ".configuration.offset.max.max_offset_z")
-				.defineInRange("max_offset_z", 5.0D, -Double.MAX_VALUE, Double.MAX_VALUE);
+				.defineInRange("max_offset_z", 20.0D, -Double.MAX_VALUE, Double.MAX_VALUE);
 			
 			builder.pop();
 			builder.push("limits");
@@ -669,6 +670,10 @@ public class Config
 			builder.pop();
 			builder.pop();
 			builder.push("crosshair");
+			this.hideCrosshairWithWeapon = builder
+				.comment("Hide the crosshair in Camera shoulder view while either hand holds a sword, axe, trident, bow/crossbow or an item tagged yesstevecamera:weapons. Also hides the crosshair attack indicator; target lock markers remain visible.")
+				.translation(MOD_ID + ".configuration.crosshair.hide_with_weapon")
+				.define("hide_with_weapon", true);
 			
 			this.crosshairType = builder
 				.comment("Crosshair type to use for shoulder surfing.")
@@ -1115,6 +1120,11 @@ public class Config
 		{
 			return this.crosshairType.get();
 		}
+
+		public boolean hideCrosshairWithWeapon()
+		{
+			return Config.CLIENT_SPEC.isLoaded() ? this.hideCrosshairWithWeapon.get() : this.hideCrosshairWithWeapon.getDefault();
+		}
 		
 		@Override
 		public boolean doRememberLastPerspective()
@@ -1414,6 +1424,14 @@ public class Config
 		public void adjustCameraOut()
 		{
 			Config.set(this.offsetZ, this.addStep(this.getOffsetZ(), this.getMaxOffsetZ(), this.isUnlimitedOffsetZ()));
+		}
+
+		public void scrollDistance(double delta)
+		{
+			// Wheel zoom stays behind the character, even if keyboard presets allow negative offsets.
+			double minimum = Math.max(0.5D, this.getMinOffsetZ());
+			double maximum = Math.max(minimum, this.getMaxOffsetZ());
+			Config.set(this.offsetZ, Math.max(minimum, Math.min(maximum, this.getOffsetZ() + delta)));
 		}
 		
 		public void toggleOffsetXPreset()

@@ -377,5 +377,7 @@
   "key.${modId}.enter_third_person_front": "Enter Third Person (Front)",
   "key.${modId}.enter_third_person_back": "Enter Third Person (Back)",
   "key.${modId}.enter_shoulder_surfing": "Enter Shoulder View",
-  "key.categories.yesstevecamera": "YesSteveCamera"
+  "key.categories.yesstevecamera": "YesSteveCamera",
+    "${modId}.configuration.crosshair.hide_with_weapon": "Hide crosshair while holding a weapon",
+    "${modId}.configuration.crosshair.hide_with_weapon.tooltip": "Hide the crosshair in Camera shoulder view when either hand holds a sword, axe, trident, bow, crossbow or weapons-tagged item, including while aiming. Target lock markers remain visible."
 }

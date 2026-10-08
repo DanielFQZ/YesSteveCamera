@@ -363,5 +363,7 @@
     "key.${modId}.enter_third_person_front": "进入第三人称视角（前）",
     "key.${modId}.enter_third_person_back": "进入第三人称视角（后）",
     "key.${modId}.enter_shoulder_surfing": "进入越肩视角",
-    "key.categories.yesstevecamera": "YesSteveCamera"
+    "key.categories.yesstevecamera": "YesSteveCamera",
+    "${modId}.configuration.crosshair.hide_with_weapon": "手持武器时隐藏准心",
+    "${modId}.configuration.crosshair.hide_with_weapon.tooltip": "Camera 视角下任意一只手持有剑、斧、三叉戟、弓、弩或 weapons 标签物品时隐藏准心，包括瞄准状态。锁定目标标记保持显示。"
 }

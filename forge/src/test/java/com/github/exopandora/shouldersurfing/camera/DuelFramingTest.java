@@ -69,6 +69,8 @@ class DuelFramingTest
 	{
 		Path path = directory.resolve("duel.json");
 		assertEquals(DuelConfig.DEFAULT, DuelConfig.load(path));
+		Files.writeString(path, "{\"enabled\":true,\"sideAngle\":35,\"minDistance\":3.5,\"maxDistance\":12,\"smoothSeconds\":0.3,\"mouseYawLimit\":20,\"mousePitchLimit\":12}");
+		assertEquals(DuelConfig.DEFAULT.positionSmoothSeconds(), DuelConfig.load(path).positionSmoothSeconds());
 		Files.writeString(path, "{\"enabled\":true,\"maxDistance\":1000000}");
 		assertThrows(java.io.IOException.class, () -> DuelConfig.load(path));
 	}

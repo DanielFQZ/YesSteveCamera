@@ -21,7 +21,7 @@ public final class YsmBridgeBootstrap
 					|| !(Boolean) result.getClass().getMethod("coverageComplete").invoke(result))
 				throw new IllegalStateException("YSM API compatibility check failed: " + result);
 			Class.forName(name, true, loader).getMethod("install").invoke(null);
-			status = "ctrl.camera_shake / ctrl.camera_shake_stop ready";
+			status = "shake / hit window / camera_preset ready";
 			ShoulderSurfingCommon.LOGGER.info("YesSteveCamera YSM: {}", status);
 		}
 		catch (ReflectiveOperationException | LinkageError | RuntimeException exception)

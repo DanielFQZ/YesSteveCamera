@@ -164,8 +164,10 @@ public class ShoulderSurfingCamera implements IShoulderSurfingCamera
 			}
 		}
 		
-		return com.github.exopandora.shouldersurfing.camera.duel.DuelCameraService.prepare(this, cameraEntity,
+		Vec2f base = com.github.exopandora.shouldersurfing.camera.motion.CameraMotionService.prepare(cameraEntity,
 				partialTick, new Vec2f(cameraXRotWithOffset, cameraYRotWithOffset));
+		return com.github.exopandora.shouldersurfing.camera.motion.CameraMotionService.exclusive() ? base
+				: com.github.exopandora.shouldersurfing.camera.duel.DuelCameraService.prepare(this, cameraEntity, partialTick, base);
 	}
 	
 	public Vec3 calcOffset(Camera camera, BlockGetter level, float partialTick, Entity cameraEntity)
@@ -257,6 +259,7 @@ public class ShoulderSurfingCamera implements IShoulderSurfingCamera
 		Vec3 lerpedOffset = this.offsetO.lerp(this.offset, partialTick).add(drag);
 		boolean duel = com.github.exopandora.shouldersurfing.camera.duel.DuelCameraService.blending();
 		if (duel) lerpedOffset = com.github.exopandora.shouldersurfing.camera.duel.DuelCameraService.offset(camera, lerpedOffset);
+		lerpedOffset = com.github.exopandora.shouldersurfing.camera.motion.CameraMotionService.offset(camera, cameraEntity, partialTick, lerpedOffset);
 		
 		if(cameraEntity.isSpectator())
 		{
@@ -273,7 +276,8 @@ public class ShoulderSurfingCamera implements IShoulderSurfingCamera
 			}
 			
 			double lerpedMaxDistance = Mth.lerp(partialTick, this.maxCameraDistanceO, this.maxCameraDistance);
-			this.cameraDistance = duel
+			this.cameraDistance = com.github.exopandora.shouldersurfing.camera.motion.CameraMotionService.buffering()
+					? com.github.exopandora.shouldersurfing.camera.motion.CameraMotionService.collisionDistance(lerpedOffset.length(), targetCameraDistance) : duel
 					? com.github.exopandora.shouldersurfing.camera.duel.DuelCameraService.collisionDistance(targetCameraDistance)
 					: Math.min(targetCameraDistance, lerpedMaxDistance);
 			this.renderOffset = lerpedOffset.normalize().scale(this.cameraDistance);
