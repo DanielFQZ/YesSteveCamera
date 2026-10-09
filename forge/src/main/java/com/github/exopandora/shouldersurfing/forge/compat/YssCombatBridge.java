@@ -47,17 +47,7 @@ public final class YssCombatBridge
 					CombatAssistService.onAttack((Long) actionId.invoke(event), (String) reason.invoke(event));
 				} catch (ReflectiveOperationException | RuntimeException exception) { fail(exception); }
 			});
-			Class<? extends Event> rootEvent = Class.forName("io.github.tt432.yessteveskill.event.YssRootMotionEvent", false, loader).asSubclass(Event.class);
-			Method rootPlayer = rootEvent.getMethod("getPlayer"), rootAction = rootEvent.getMethod("getActionId");
-			Method movement = rootEvent.getMethod("getMovement"), limit = rootEvent.getMethod("limitHorizontalScale", double.class);
-			listen(rootEvent, event -> {
-				if (!ready) return;
-				try {
-					if (rootPlayer.invoke(event) != Minecraft.getInstance().player) return;
-					limit.invoke(event, CombatAssistService.rootMotionScale((Long) rootAction.invoke(event), (Vec3) movement.invoke(event)));
-				} catch (ReflectiveOperationException | RuntimeException exception) { fail(exception); }
-			});
-			ready = true; status = "facing + root contact ready";
+			ready = true; status = "attack facing ready";
 			installConfirmedHitListener(loader);
 			ShoulderSurfingCommon.LOGGER.info("YesSteveCamera YSS: {}", status);
 		}

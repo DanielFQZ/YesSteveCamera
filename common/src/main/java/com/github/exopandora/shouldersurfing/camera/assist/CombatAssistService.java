@@ -103,21 +103,30 @@ public final class CombatAssistService
 		lastEventTick = mc.player.tickCount;
 		currentAction = actionId;
 		diagnostics.received();
+		boolean actionStarted = false;
 		if (WINDOW.observe(actionId))
 		{
+			actionStarted = true;
 			freeFacing = false; manuallySuppressed = false;
 			target = chooseTarget();
 			diagnostics.begin(target == null ? "none" : target.getDisplayName().getString());
 		}
 		// Root motion owns translation, not facing. Older bridge versions report it as a block.
 		if (!blocked.isEmpty() && !blocked.equals("root_motion")) { cancel("YSS " + blocked); return; }
-		if (WINDOW.active()) correctFacing();
+		// Set the body's launch heading once. Re-facing every tick would rotate later root-motion
+		// deltas while fixed-origin VFX continue along the original animation trajectory.
+		if (actionStarted && WINDOW.active()) correctFacing(true);
 	}
 
 	private static void correctFacing()
 	{
+		correctFacing(false);
+	}
+
+	private static void correctFacing(boolean force)
+	{
 		var mc = Minecraft.getInstance(); var player = mc.player;
-		if (lastTick == player.tickCount) return;
+		if (!force && lastTick == player.tickCount) return;
 		lastTick = player.tickCount;
 		if (!armed()) { cancel("no sword"); return; }
 		if (!ShoulderSurfingImpl.getInstance().isCameraDecoupled()) { cancel("coupled camera"); return; }
@@ -155,16 +164,9 @@ public final class CombatAssistService
 	/** Called synchronously before YSS applies this action's root-motion delta. */
 	public static double rootMotionScale(long actionId, Vec3 delta)
 	{
-		var mc = Minecraft.getInstance();
-		if (!WINDOW.active() || actionId != currentAction || !hasAssistTarget() || !legal(target)
-				|| lastEventTick != mc.player.tickCount) return 1;
-		double scale = RootMotionClip.horizontalScale(mc.player.getBoundingBox(), target.getBoundingBox(), delta);
-		if (scale < 1)
-		{
-			status = "root motion contact";
-			diagnostics.clipped(delta.horizontalDistance() * (1 - scale));
-		}
-		return scale;
+		// Root motion is authored together with fixed-origin VFX. Preserve its exact trajectory;
+		// hit detection belongs to YSS hitboxes and must not move/clip the caster.
+		return 1;
 	}
 
 	public static void endTick()
