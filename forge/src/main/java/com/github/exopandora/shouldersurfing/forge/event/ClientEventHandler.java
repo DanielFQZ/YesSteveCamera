@@ -39,7 +39,8 @@ public class ClientEventHandler
 		com.github.exopandora.shouldersurfing.camera.CameraRuntime.tick();
 		if (mc.level != null && !mc.isPaused()) ShoulderSurfingImpl.getInstance().tick();
 		TargetService.tick(CameraKeys.LOCK.isDown());
-		if (!TargetService.enabled()) com.github.exopandora.shouldersurfing.camera.assist.CombatAssistService.cancel(mc.screen != null ? "UI opened" : "camera unavailable");
+		if (!TargetService.available() && !com.github.exopandora.shouldersurfing.camera.assist.CombatAssistService.preservesHeading())
+			com.github.exopandora.shouldersurfing.camera.assist.CombatAssistService.cancel("camera unavailable");
 		while (CameraKeys.LOCK.consumeClick()) { /* Poll held state, not accumulated clicks. */ }
 
 	}

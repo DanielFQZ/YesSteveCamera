@@ -19,7 +19,7 @@ public final class LockMovementService
 		var mc = Minecraft.getInstance();
 		var instance = ShoulderSurfingImpl.getInstance();
 		var target = TargetService.target();
-		return TargetService.enabled() && target != null && target.isAlive() && !target.isRemoved()
+		return !CombatAssistService.steeringSuppressed() && TargetService.enabled() && target != null && target.isAlive() && !target.isRemoved()
 				&& target.level() == mc.level && instance.isCameraDecoupled()
 				&& !instance.isFreeLooking() && !instance.isAiming()
 				&& !mc.player.isPassenger() && !mc.player.isSleeping() && !mc.player.isSwimming()
@@ -53,6 +53,7 @@ public final class LockMovementService
 	}
 	public static boolean apply(Input input)
 	{
+		if (CombatAssistService.preservesHeading()) return false;
 		update(input.forwardImpulse, input.leftImpulse);
 		if (!available() || SPRINT.released()) return false;
 		var movement = LockedMovement.relative(input.leftImpulse, input.forwardImpulse, targetYaw(), Minecraft.getInstance().player.getYRot());

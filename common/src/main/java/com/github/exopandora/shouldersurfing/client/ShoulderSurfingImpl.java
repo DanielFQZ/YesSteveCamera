@@ -128,6 +128,7 @@ public class ShoulderSurfingImpl implements IShoulderSurfing
 	
 	private void lookAtCrosshairTargetInternal()
 	{
+		if (com.github.exopandora.shouldersurfing.camera.assist.CombatAssistService.preservesHeading()) return;
 		Minecraft minecraft = Minecraft.getInstance();
 		LocalPlayer player = minecraft.player;
 		assert player != null;

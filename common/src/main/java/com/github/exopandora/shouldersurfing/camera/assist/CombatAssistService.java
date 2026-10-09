@@ -16,31 +16,63 @@ public final class CombatAssistService
 {
 	private static AssistConfig config = AssistConfig.DEFAULT;
 	private static final AssistWindow WINDOW = new AssistWindow();
+	private static final AttackHeading HEADING = new AttackHeading();
 	private static LivingEntity target;
 	private static int lastTick = Integer.MIN_VALUE;
 	private static int lastEventTick = Integer.MIN_VALUE;
 	private static long currentAction;
 	private static boolean freeFacing, manuallySuppressed;
+	private static String actionAssistMode = "inherit";
 	private static String status = "idle";
 	private static AssistDiagnostics diagnostics = new AssistDiagnostics();
 	private CombatAssistService() {}
 	public static void configure(AssistConfig value) { config = value; cancel("configuration reloaded"); }
-	public static void reset() { diagnostics = new AssistDiagnostics(); WINDOW.reset(); target = null; lastTick = Integer.MIN_VALUE; lastEventTick = Integer.MIN_VALUE; freeFacing = false; manuallySuppressed = false; status = "idle"; }
+	public static void reset() { diagnostics = new AssistDiagnostics(); WINDOW.reset(); HEADING.clear(); target = null; lastTick = Integer.MIN_VALUE; lastEventTick = Integer.MIN_VALUE; freeFacing = false; manuallySuppressed = false; actionAssistMode = "inherit"; status = "idle"; }
 	public static void cancel(String reason)
 	{
 		if (diagnostics.finish(reason))
 			com.github.exopandora.shouldersurfing.ShoulderSurfingCommon.LOGGER.info("Camera assist: {}", diagnostics.summary());
-		WINDOW.stop(); freeFacing = false; target = null; status = reason;
-		if (reason.equals("manual cancel") || reason.equals("lock cancelled")) manuallySuppressed = true;
+		WINDOW.stop(); HEADING.clear(); freeFacing = false; target = null; status = reason;
+		// Cancelling an explicit lock must return to automatic acquisition, not disable it.
+		manuallySuppressed = reason.equals("manual cancel");
 	}
 	public static String status() { return (armed() ? "sword ready: " : "no sword: ") + (hasAssistTarget() ? (sprintReleasesFacing() ? "sprinting: facing released" : status) : "idle") + " | " + diagnostics.summary(); }
 	public static LivingEntity target() { return target; }
+	/** Makes the target chosen by YSS's pre-animation attack event visible to optional integrations. */
+	public static void rememberTarget(LivingEntity value)
+	{
+		if (value != null && legal(value)) target = value;
+	}
+	public static void onLockCleared()
+	{
+		target = null;
+		freeFacing = false;
+		manuallySuppressed = false;
+		// Keep the launched action's frame even if its target dies or the user unlocks it.
+	}
 	private static boolean hasAssistTarget() {
 		if (!(WINDOW.active() || freeFacing) || target == null || !armed() || !TargetService.enabled()) return false;
 		return WINDOW.active() ? withinAttackRange(target)
-				: (TargetService.target() != null || withinAcquisitionRange(target));
+				: (TargetService.target() != null || withinAssistLockRange(target));
 	}
-	public static boolean ownsFacing() { return hasAssistTarget() && !sprintReleasesFacing(); }
+	public static boolean steeringSuppressed() { return ActionAssistPolicy.suppressesSteering(WINDOW.active(), actionAssistMode); }
+	public static boolean ownsFacing() { return !steeringSuppressed() && (preservesHeading() || (hasAssistTarget() && !sprintReleasesFacing())); }
+	public static boolean preservesHeading()
+	{
+		var mc = Minecraft.getInstance();
+		return WINDOW.active() && HEADING.captured() && mc.player != null && mc.player.isAlive()
+				&& ShoulderSurfingImpl.getInstance().isCameraDecoupled()
+				&& !"off".equals(actionAssistMode);
+	}
+	/** Also called after vanilla's body-turn calculation, which otherwise turns during return travel. */
+	public static void applyAttackHeading()
+	{
+		if (!preservesHeading()) return;
+		var player = Minecraft.getInstance().player;
+		player.setYRot(HEADING.yaw());
+		player.yBodyRot = HEADING.yaw(); player.yHeadRot = HEADING.yaw();
+		player.yRotO = HEADING.yaw(); player.yBodyRotO = HEADING.yaw(); player.yHeadRotO = HEADING.yaw();
+	}
 	public static boolean sprintReleasesFacing()
 	{
 		return LockMovementService.releasesFacing();
@@ -52,6 +84,11 @@ public final class CombatAssistService
 		if (!config.enabled() || !armed() || !TargetService.enabled()) return null;
 		LivingEntity locked = TargetService.target();
 		if (locked != null) return legal(locked) ? locked : null;
+		// An attack-assist target is a soft lock, not a one-tick candidate. Prefer it for
+		// subsequent actions while it remains alive and inside the enlarged keep range;
+		// otherwise a root-motion action that leaves the target behind would immediately
+		// lose the target when the next animation starts.
+		if (target != null && legal(target) && withinAssistLockRange(target)) return target;
 		if (!config.autoHostiles()) return null;
 		Vec3 forward = Vec3.directionFromRotation(0, mc.player.getYRot());
 		// Automatic attacks use the player's forward hemisphere, independently of the camera.
@@ -71,6 +108,17 @@ public final class CombatAssistService
 	 * the YSS attack window is active, so ordinary target selection remains local and predictable.
 	 */
 	private static boolean withinAttackRange(LivingEntity entity)
+	{
+		var player = Minecraft.getInstance().player;
+		return player != null && player.distanceToSqr(entity) <= config.attackRange() * config.attackRange();
+	}
+
+	/**
+	 * Once automatic attack assist has selected a target, keep that target beyond the
+	 * initial acquisition cone. This is deliberately separate from {@link #withinAcquisitionRange}
+	 * so walking away does not immediately erase the target used by target VFX.
+	 */
+	private static boolean withinAssistLockRange(LivingEntity entity)
 	{
 		var player = Minecraft.getInstance().player;
 		return player != null && player.distanceToSqr(entity) <= config.attackRange() * config.attackRange();
@@ -98,24 +146,61 @@ public final class CombatAssistService
 
 	public static void onAttack(long actionId, String blocked)
 	{
+		onAttack(actionId, blocked, Float.NaN);
+	}
+
+	public static void onAttack(long actionId, String blocked, float rootMotionYaw)
+	{
+		onAttack(actionId, blocked, rootMotionYaw, "inherit");
+	}
+
+	public static void onAttack(long actionId, String blocked, float rootMotionYaw, String assistMode)
+	{
 		var mc = Minecraft.getInstance();
 		if (mc.player == null || mc.isPaused()) return;
 		lastEventTick = mc.player.tickCount;
 		currentAction = actionId;
+		actionAssistMode = assistMode == null ? "inherit" : assistMode;
 		diagnostics.received();
 		boolean actionStarted = false;
 		if (WINDOW.observe(actionId))
 		{
+			HEADING.clear();
 			actionStarted = true;
 			freeFacing = false; manuallySuppressed = false;
-			target = chooseTarget();
+			target = ActionAssistPolicy.targetForAction(actionAssistMode, target,
+					entity -> legal(entity) && withinAssistLockRange(entity), CombatAssistService::chooseTarget);
 			diagnostics.begin(target == null ? "none" : target.getDisplayName().getString());
+			com.github.exopandora.shouldersurfing.ShoulderSurfingCommon.LOGGER.debug(
+					"Camera assist action start: id={}, mode={}, target={}", actionId, actionAssistMode,
+					target == null ? "none" : target.getUUID());
 		}
-		// Root motion owns translation, not facing. Older bridge versions report it as a block.
-		if (!blocked.isEmpty() && !blocked.equals("root_motion")) { cancel("YSS " + blocked); return; }
+		if (!WINDOW.active()) return;
+		if (steeringSuppressed())
+		{
+			// Keep identity available to VFX, but never acquire or steer during an off action.
+			if (target != null && (!legal(target) || !withinAssistLockRange(target))) target = null;
+			status = "camera steering disabled for animation";
+			return;
+		}
+		if (!blocked.isEmpty() && !blocked.equals("root_motion") && !AttackHeading.temporaryBlock(blocked))
+		{ cancel("YSS " + blocked); return; }
+		if (!config.enabled() || !armed() || !TargetService.available()
+				|| !ShoulderSurfingImpl.getInstance().isCameraDecoupled()) { cancel("camera unavailable"); return; }
+		// Losing a target does not change the coordinate frame of an already launched attack.
+		if (!"start_only".equals(actionAssistMode) && target != null && (!legal(target) || !withinAttackRange(target))) target = null;
 		// Set the body's launch heading once. Re-facing every tick would rotate later root-motion
 		// deltas while fixed-origin VFX continue along the original animation trajectory.
-		if (actionStarted && WINDOW.active()) correctFacing(true);
+		if (actionStarted && target != null && !AttackHeading.temporaryBlock(blocked)
+				&& TargetService.enabled()) correctFacing(true);
+		HEADING.capture(rootMotionYaw);
+		if (!HEADING.captured()) HEADING.capture(mc.player.getYRot());
+		if (WINDOW.active())
+		{
+			HEADING.capture(mc.player.getYRot());
+			applyAttackHeading();
+			status = "preserving attack heading";
+		}
 	}
 
 	private static void correctFacing()
@@ -132,7 +217,7 @@ public final class CombatAssistService
 		if (!ShoulderSurfingImpl.getInstance().isCameraDecoupled()) { cancel("coupled camera"); return; }
 		if (mc.gameMode != null && mc.gameMode.isDestroying()) { cancel("mining block"); return; }
 		if (!config.enabled() || !TargetService.enabled() || target == null || !legal(target)
-				|| (WINDOW.active() && !withinAttackRange(target))) { cancel("target unavailable"); return; }
+				|| (WINDOW.active() && !"start_only".equals(actionAssistMode) && !withinAttackRange(target))) { cancel("target unavailable"); return; }
 		if (TargetService.target() != null && TargetService.target() != target) { cancel("lock changed"); return; }
 		if (player.isPassenger() || player.isFallFlying() || player.getAbilities().flying) { cancel("riding or flying"); return; }
 		if (player.hurtTime > 0) { cancel("hurt"); return; }
@@ -174,18 +259,29 @@ public final class CombatAssistService
 		var mc = Minecraft.getInstance();
 		if (mc.isPaused()) return;
 		if (mc.player == null) { reset(); return; }
-		if (!armed()) { manuallySuppressed = false; cancel("no sword"); return; }
+		if (!armed()) { manuallySuppressed = false; finishAction("no sword"); return; }
 		if (lastEventTick == mc.player.tickCount) return;
-		if (WINDOW.active()) cancel("animation ended");
+		if (WINDOW.active()) finishAction("animation ended");
 		// Holding a sword arms correction even without a YSS animation. Do not erase the
 		// last action's diagnostics while idle or when opening chat to inspect them.
 		if (manuallySuppressed || !config.enabled() || !TargetService.enabled()) return;
 		// Idle automatic assistance stays local; a manual lock or active attack has no distance cap.
 		if (target == null || !legal(target)
-				|| (TargetService.target() == null && !withinAcquisitionRange(target))
+				|| (TargetService.target() == null && !withinAssistLockRange(target))
 				|| (TargetService.target() != null && TargetService.target() != target))
 			target = chooseTarget();
 		freeFacing = target != null;
 		if (freeFacing) correctFacing();
+	}
+
+	/** Ends the current attack control window while retaining a valid soft-lock target. */
+	private static void finishAction(String reason)
+	{
+		if (diagnostics.finish(reason))
+			com.github.exopandora.shouldersurfing.ShoulderSurfingCommon.LOGGER.info("Camera assist: {}", diagnostics.summary());
+		WINDOW.stop();
+		HEADING.clear();
+		freeFacing = target != null && legal(target) && withinAssistLockRange(target);
+		status = reason;
 	}
 }

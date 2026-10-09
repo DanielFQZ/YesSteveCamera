@@ -223,7 +223,8 @@ public class InputHandler
 				LocalPlayer player = minecraft.player;
 				float yRot = player.getYRot();
 				
-				if(this.instance.isEntityRotationDecoupled(player, minecraft))
+				if(this.instance.isEntityRotationDecoupled(player, minecraft)
+						&& !com.github.exopandora.shouldersurfing.camera.assist.CombatAssistService.preservesHeading())
 				{
 					float cameraXRot = camera.getXRot();
 					float cameraYRot = camera.getYRot();

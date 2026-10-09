@@ -4,7 +4,6 @@ import com.github.exopandora.shouldersurfing.ShoulderSurfingCommon;
 import com.github.exopandora.shouldersurfing.camera.assist.CombatAssistService;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.eventbus.api.Event;
 import net.minecraftforge.eventbus.api.EventPriority;
@@ -32,19 +31,26 @@ public final class YssCombatBridge
 			Class<? extends Event> assistEvent = Class.forName("io.github.tt432.yessteveskill.event.YssAttackAssistEvent", false, loader).asSubclass(Event.class);
 			Method targetPlayer = targetEvent.getMethod("getPlayer"), setTarget = targetEvent.getMethod("setTarget", LivingEntity.class);
 			Method assistPlayer = assistEvent.getMethod("getPlayer"), actionId = assistEvent.getMethod("getActionId"), reason = assistEvent.getMethod("getBlockReason");
+			Method rootYaw = optionalRootYaw(assistEvent);
+			Method assistMode = optionalAssistMode(assistEvent);
 			listen(targetEvent, event -> {
 				if (!ready) return;
 				try {
 					if (targetPlayer.invoke(event) != Minecraft.getInstance().player) return;
 					LivingEntity target = CombatAssistService.chooseTarget();
-					if (target != null) setTarget.invoke(event, target);
+					if (target != null) {
+						CombatAssistService.rememberTarget(target);
+						setTarget.invoke(event, target);
+					}
 				} catch (ReflectiveOperationException | RuntimeException exception) { fail(exception); }
 			});
 			listen(assistEvent, event -> {
 				if (!ready) return;
 				try {
 					if (assistPlayer.invoke(event) != Minecraft.getInstance().player) return;
-					CombatAssistService.onAttack((Long) actionId.invoke(event), (String) reason.invoke(event));
+					CombatAssistService.onAttack((Long) actionId.invoke(event), (String) reason.invoke(event),
+							rootYaw == null ? Float.NaN : (Float) rootYaw.invoke(event),
+							assistMode == null ? "inherit" : (String) assistMode.invoke(event));
 				} catch (ReflectiveOperationException | RuntimeException exception) { fail(exception); }
 			});
 			ready = true; status = "attack facing ready";
@@ -95,7 +101,7 @@ public final class YssCombatBridge
 				}
 				catch (ReflectiveOperationException | RuntimeException exception) { logHitFailure(exception); }
 			});
-			status = "facing + root contact + confirmed hit ready";
+			status = "attack heading + confirmed hit ready";
 		}
 		catch (ReflectiveOperationException | LinkageError | RuntimeException exception)
 		{
@@ -106,6 +112,26 @@ public final class YssCombatBridge
 	private static void logHitFailure(Throwable exception)
 	{
 		ShoulderSurfingCommon.LOGGER.warn("YesSteveCamera YSS confirmed-hit shake listener failed", exception);
+	}
+
+	private static Method optionalRootYaw(Class<?> eventType)
+	{
+		try { return eventType.getMethod("getRootMotionYaw"); }
+		catch (NoSuchMethodException exception)
+		{
+			ShoulderSurfingCommon.LOGGER.info("YSS has no fixed root heading API; using Camera's action-entry heading");
+			return null;
+		}
+	}
+
+	private static Method optionalAssistMode(Class<?> eventType)
+	{
+		try { return eventType.getMethod("getCameraAssistMode"); }
+		catch (NoSuchMethodException exception)
+		{
+			ShoulderSurfingCommon.LOGGER.info("YSS has no animation-level Camera assist API; using inherit");
+			return null;
+		}
 	}
 
 	private static <T extends Event> void listen(Class<T> type, java.util.function.Consumer<T> listener)

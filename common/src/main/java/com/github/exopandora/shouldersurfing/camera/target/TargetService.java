@@ -50,7 +50,7 @@ public final class TargetService
 
 	public static boolean enabled() { return available() && Minecraft.getInstance().screen == null; }
 
-	private static boolean available()
+	public static boolean available()
 	{
 		Minecraft mc = Minecraft.getInstance();
 		return mc.level != null && mc.player != null && mc.player.isAlive() && !mc.player.isSpectator()
@@ -71,11 +71,12 @@ public final class TargetService
 			cancel();
 			BUTTON.suppressUntilRelease();
 		}
-		// Chat is an inspection surface: retain the lock but suspend actions and held input.
-		if (available() && mc.screen instanceof net.minecraft.client.gui.screens.ChatScreen)
+		// Screens suspend input; they do not cancel a valid target or poison auto-acquisition.
+		if (available() && (mc.screen != null || mc.isPaused()))
 		{
 			BUTTON.suppressUntilRelease();
 			if (target != null && !legal(target)) cancel();
+			if (target != null) publish();
 			return;
 		}
 		if(!enabled())
@@ -169,6 +170,8 @@ public final class TargetService
 	/** Applies only the combat body yaw; camera look direction remains independent. */
 	public static void applyPlayerFacing()
 	{
+		if (com.github.exopandora.shouldersurfing.camera.assist.CombatAssistService.steeringSuppressed()) return;
+		if (com.github.exopandora.shouldersurfing.camera.assist.CombatAssistService.preservesHeading()) return;
 		if(target == null || !enabled() || !config.faceTarget()
 				|| com.github.exopandora.shouldersurfing.camera.assist.CombatAssistService.sprintReleasesFacing()) return;
 		Minecraft mc = Minecraft.getInstance();
@@ -186,7 +189,7 @@ public final class TargetService
 	public static void cancel()
 	{
 		com.github.exopandora.shouldersurfing.camera.assist.LockMovementService.reset();
-		if(target != null) { selectionVersion++; com.github.exopandora.shouldersurfing.camera.assist.CombatAssistService.cancel("lock cancelled"); }
+		if(target != null) { selectionVersion++; com.github.exopandora.shouldersurfing.camera.assist.CombatAssistService.onLockCleared(); }
 		target = null;
 		snapshot = null;
 		hiddenTicks = 0;
