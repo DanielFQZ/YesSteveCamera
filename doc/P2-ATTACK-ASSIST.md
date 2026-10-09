@@ -17,7 +17,8 @@
 
 ## 配置与取消
 
-`config/yesstevecamera/assist.json`：`enabled`、`autoHostiles`、`range`、`turnDegrees` 继续生效。
+`config/yesstevecamera/assist.json`：`enabled`、`autoHostiles`、`range`、`attackRange`、`turnDegrees` 继续生效。
+`range` 只控制没有现成锁定时的初始自动索敌；`attackRange` 只控制 YSS 动作窗口内的保锁距离，默认64格，适合16至32格的Root Motion动作。
 旧 `stopGap`、`resumeGap`、`speed`、`acceleration`、`maxTicks` 字段暂保留以读取现有配置，但不再控制移动或限制朝向持续时间。接触间隙使用0.02格，不使用旧的1.25格攻击距离。
 
 保持 targeting.json 的 `face_target=false`，避免同时启用旧实验性朝向逻辑。

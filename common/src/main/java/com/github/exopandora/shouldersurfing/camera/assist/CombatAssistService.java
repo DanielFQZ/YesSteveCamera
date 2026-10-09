@@ -35,7 +35,11 @@ public final class CombatAssistService
 	}
 	public static String status() { return (armed() ? "sword ready: " : "no sword: ") + (hasAssistTarget() ? (sprintReleasesFacing() ? "sprinting: facing released" : status) : "idle") + " | " + diagnostics.summary(); }
 	public static LivingEntity target() { return target; }
-	private static boolean hasAssistTarget() { return (WINDOW.active() || freeFacing) && target != null && armed() && TargetService.enabled(); }
+	private static boolean hasAssistTarget() {
+		if (!(WINDOW.active() || freeFacing) || target == null || !armed() || !TargetService.enabled()) return false;
+		return WINDOW.active() ? withinAttackRange(target)
+				: (TargetService.target() != null || withinAcquisitionRange(target));
+	}
 	public static boolean ownsFacing() { return hasAssistTarget() && !sprintReleasesFacing(); }
 	public static boolean sprintReleasesFacing()
 	{
@@ -61,6 +65,15 @@ public final class CombatAssistService
 	private static boolean withinAcquisitionRange(LivingEntity entity)
 	{
 		return Minecraft.getInstance().player.distanceToSqr(entity) <= config.range() * config.range();
+	}
+	/**
+	 * A locked action may travel far beyond the acquisition radius. This gate only applies while
+	 * the YSS attack window is active, so ordinary target selection remains local and predictable.
+	 */
+	private static boolean withinAttackRange(LivingEntity entity)
+	{
+		var player = Minecraft.getInstance().player;
+		return player != null && player.distanceToSqr(entity) <= config.attackRange() * config.attackRange();
 	}
 
 	private static Vec3 direction(LivingEntity entity)
@@ -109,7 +122,8 @@ public final class CombatAssistService
 		if (!armed()) { cancel("no sword"); return; }
 		if (!ShoulderSurfingImpl.getInstance().isCameraDecoupled()) { cancel("coupled camera"); return; }
 		if (mc.gameMode != null && mc.gameMode.isDestroying()) { cancel("mining block"); return; }
-		if (!config.enabled() || !TargetService.enabled() || target == null || !legal(target)) { cancel("target unavailable"); return; }
+		if (!config.enabled() || !TargetService.enabled() || target == null || !legal(target)
+				|| (WINDOW.active() && !withinAttackRange(target))) { cancel("target unavailable"); return; }
 		if (TargetService.target() != null && TargetService.target() != target) { cancel("lock changed"); return; }
 		if (player.isPassenger() || player.isFallFlying() || player.getAbilities().flying) { cancel("riding or flying"); return; }
 		if (player.hurtTime > 0) { cancel("hurt"); return; }
